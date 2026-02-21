@@ -2,12 +2,12 @@ import os
 import streamlit as st
 import pickle
 import time
-from langchain import OpenAI
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.chains import RetrievalQAWithSourcesChain
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.document_loaders import UnstructuredURLLoader
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import WebBaseLoader
+from langchain_community.vectorstores import FAISS
+
 
 from dotenv import load_dotenv
 load_dotenv()  # take environment variables from .env (especially openai api key)
@@ -24,7 +24,8 @@ process_url_clicked = st.sidebar.button("Process URLs")
 file_path = "faiss_store_openai.pkl"
 
 main_placeholder = st.empty()
-llm = OpenAI(temperature=0.9, max_tokens=500)
+llm = ChatOpenAI(temperature=0.9, max_tokens=500)
+
 
 if process_url_clicked:
     # load data

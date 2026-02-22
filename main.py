@@ -1,7 +1,10 @@
 import os
 import streamlit as st
-import pickle
 import time
+
+from dotenv import load_dotenv
+load_dotenv()
+
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.chains import RetrievalQAWithSourcesChain
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -9,9 +12,9 @@ from langchain_community.document_loaders import WebBaseLoader
 from langchain_community.vectorstores import FAISS
 
 
-from dotenv import load_dotenv
-load_dotenv()  # take environment variables from .env (especially openai api key)
-
+# =========================
+# UI
+# =========================
 st.title("EquityBot: News Research Tool 📈")
 st.sidebar.title("News Article URLs")
 
@@ -21,22 +24,25 @@ for i in range(3):
     urls.append(url)
 
 process_url_clicked = st.sidebar.button("Process URLs")
-
 main_placeholder = st.empty()
 
+
+# =========================
 # LLM
+# =========================
 llm = ChatOpenAI(temperature=0.9, max_tokens=500)
+
 
 # =========================
 # PROCESS URLS
 # =========================
 if process_url_clicked:
 
-    # remove empty URLs
     valid_urls = [u for u in urls if u.strip() != ""]
 
     if len(valid_urls) == 0:
         st.error("Please enter at least one valid URL")
+
     else:
         loader = WebBaseLoader(valid_urls)
 
@@ -52,13 +58,14 @@ if process_url_clicked:
         docs = text_splitter.split_documents(data)
 
         embeddings = OpenAIEmbeddings()
-        vectorstore_openai = FAISS.from_documents(docs, embeddings)
+        vectorstore = FAISS.from_documents(docs, embeddings)
 
         main_placeholder.text("Saving FAISS index...✅")
-        vectorstore_openai.save_local("faiss_index")
+        vectorstore.save_local("faiss_index")
 
         time.sleep(1)
         st.success("Processing complete!")
+
 
 # =========================
 # QUESTION
@@ -69,6 +76,7 @@ if query:
 
     if not os.path.exists("faiss_index"):
         st.error("Please process URLs first")
+
     else:
         embeddings = OpenAIEmbeddings()
 
@@ -83,18 +91,16 @@ if query:
             retriever=vectorstore.as_retriever()
         )
 
-        result = chain({"question": query}, return_only_outputs=True)
+        result = chain.invoke({"question": query})
 
+        # ----- Answer -----
         st.header("Answer")
-        st.write(result["answer"])
+        st.write(result.get("answer"))
 
-        sources = result.get("sources", "")
+        # ----- Sources -----
+        sources = result.get("sources")
         if sources:
-            st.subheader("Sources:")
+            st.subheader("Sources")
             for s in sources.split("\n"):
-                st.write(s)
-
-
-
-
-
+                if s.strip():
+                    st.write(s)

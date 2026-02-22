@@ -30,7 +30,7 @@ process_url_clicked = st.sidebar.button("Process URLs")
 # LLM
 # =========================
 llm = ChatOpenAI(
-    temperature=0.5,
+    temperature=0.2,
     max_tokens=500
 )
 
@@ -53,7 +53,7 @@ if process_url_clicked:
         st.stop()
 
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
+        chunk_size=600,
         chunk_overlap=200
     )
     docs = splitter.split_documents(data)

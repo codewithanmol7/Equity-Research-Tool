@@ -1,9 +1,7 @@
 import os
 import streamlit as st
 import time
-
 from dotenv import load_dotenv
-load_dotenv()
 
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain.chains import RetrievalQAWithSourcesChain
@@ -11,10 +9,14 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_community.vectorstores import FAISS
 
+# -----------------------------
+# LOAD ENV
+# -----------------------------
+load_dotenv()
 
-# =========================
+# -----------------------------
 # UI
-# =========================
+# -----------------------------
 st.title("EquityBot: News Research Tool 📈")
 st.sidebar.title("News Article URLs")
 
@@ -26,57 +28,55 @@ for i in range(3):
 process_url_clicked = st.sidebar.button("Process URLs")
 main_placeholder = st.empty()
 
-
-# =========================
+# -----------------------------
 # LLM
-# =========================
-llm = ChatOpenAI(temperature=0.9, max_tokens=500)
+# -----------------------------
+llm = ChatOpenAI(
+    temperature=0.7,
+    max_tokens=500
+)
 
-
-# =========================
+# -----------------------------
 # PROCESS URLS
-# =========================
+# -----------------------------
 if process_url_clicked:
 
-    valid_urls = [u for u in urls if u.strip() != ""]
+    valid_urls = [u for u in urls if u.strip()]
 
-    if len(valid_urls) == 0:
+    if not valid_urls:
         st.error("Please enter at least one valid URL")
-
     else:
         loader = WebBaseLoader(valid_urls)
 
-        main_placeholder.text("Data Loading...Started...✅")
+        main_placeholder.text("Loading data...")
         data = loader.load()
 
-        text_splitter = RecursiveCharacterTextSplitter(
+        splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
             chunk_overlap=200
         )
 
-        main_placeholder.text("Text Splitting...Started...✅")
-        docs = text_splitter.split_documents(data)
+        main_placeholder.text("Splitting text...")
+        docs = splitter.split_documents(data)
 
         embeddings = OpenAIEmbeddings()
+
+        main_placeholder.text("Creating vector store...")
         vectorstore = FAISS.from_documents(docs, embeddings)
 
-        main_placeholder.text("Saving FAISS index...✅")
         vectorstore.save_local("faiss_index")
 
-        time.sleep(1)
         st.success("Processing complete!")
 
-
-# =========================
-# QUESTION
-# =========================
+# -----------------------------
+# ASK QUESTION
+# -----------------------------
 query = st.text_input("Question:")
 
 if query:
 
     if not os.path.exists("faiss_index"):
         st.error("Please process URLs first")
-
     else:
         embeddings = OpenAIEmbeddings()
 
@@ -88,19 +88,16 @@ if query:
 
         chain = RetrievalQAWithSourcesChain.from_llm(
             llm=llm,
-            retriever=vectorstore.as_retriever()
+            retriever=vectorstore.as_retriever(),
+            return_source_documents=True
         )
 
         result = chain.invoke({"question": query})
 
-        # ----- Answer -----
         st.header("Answer")
-        st.write(result.get("answer"))
+        st.write(result["answer"])
 
-        # ----- Sources -----
-        sources = result.get("sources")
-        if sources:
+        if result.get("sources"):
             st.subheader("Sources")
-            for s in sources.split("\n"):
-                if s.strip():
-                    st.write(s)
+            for s in result["sources"].split("\n"):
+                st.write(s)

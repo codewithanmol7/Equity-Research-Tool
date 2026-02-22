@@ -6,8 +6,10 @@ langchain-openai==0.1.23
 langchain-community==0.2.16
 langchain-text-splitters==0.2.2
 
-faiss-cpu==1.8.0
+faiss-cpu==1.7.4
+
 beautifulsoup4==4.12.3
 tiktoken==0.7.0
+requests==2.31.0
 
 

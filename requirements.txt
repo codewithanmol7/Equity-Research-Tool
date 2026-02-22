@@ -1,12 +1,13 @@
-streamlit
-python-dotenv
+streamlit==1.32.0
+python-dotenv==1.0.1
 
-langchain
-langchain-openai
-langchain-community
-langchain-text-splitters
+langchain==0.2.16
+langchain-openai==0.1.23
+langchain-community==0.2.16
+langchain-text-splitters==0.2.2
 
-faiss-cpu
-beautifulsoup4
-tiktoken
+faiss-cpu==1.8.0
+beautifulsoup4==4.12.3
+tiktoken==0.7.0
+
 

@@ -1,6 +1,6 @@
 import os
 import streamlit as st
-import pickle
+
 import time
 from langchain_openai import OpenAI
 from langchain_classic.chains import RetrievalQAWithSourcesChain
@@ -21,7 +21,7 @@ for i in range(3):
     urls.append(url)
 
 process_url_clicked = st.sidebar.button("Process URLs")
-file_path = "faiss_store_openai.pkl"
+faiss_store_path = "faiss_store_openai"
 
 main_placeholder = st.empty()
 llm = OpenAI(temperature=0.9, max_tokens=500)
@@ -44,28 +44,26 @@ if process_url_clicked:
     main_placeholder.text("Embedding Vector Started Building...")
     time.sleep(2)
 
-    # Save the FAISS index to a pickle file
-    with open(file_path, "wb") as f:
-        pickle.dump(vectorstore_openai, f)
+    # Save the FAISS index using native method
+    vectorstore_openai.save_local(faiss_store_path)
 
 query = main_placeholder.text_input("Question: ")
 if query:
-    if os.path.exists(file_path):
-        with open(file_path, "rb") as f:
-            vectorstore = pickle.load(f)
-            chain = RetrievalQAWithSourcesChain.from_llm(llm=llm, retriever=vectorstore.as_retriever())
-            result = chain({"question": query}, return_only_outputs=True)
-            # result will be a dictionary of this format --> {"answer": "", "sources": [] }
-            st.header("Answer")
-            st.write(result["answer"])
+    if os.path.exists(faiss_store_path):
+        vectorstore = FAISS.load_local(faiss_store_path, embeddings=OpenAIEmbeddings(), allow_dangerous_deserialization=True)
+        chain = RetrievalQAWithSourcesChain.from_llm(llm=llm, retriever=vectorstore.as_retriever())
+        result = chain({"question": query}, return_only_outputs=True)
+        # result will be a dictionary of this format --> {"answer": "", "sources": [] }
+        st.header("Answer")
+        st.write(result["answer"])
 
-            # Display sources, if available
-            sources = result.get("sources", "")
-            if sources:
-                st.subheader("Sources:")
-                sources_list = sources.split("\n")  # Split the sources by newline
-                for source in sources_list:
-                    st.write(source)
+        # Display sources, if available
+        sources = result.get("sources", "")
+        if sources:
+            st.subheader("Sources:")
+            sources_list = sources.split("\n")  # Split the sources by newline
+            for source in sources_list:
+                st.write(source)
 
 
 

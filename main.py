@@ -20,7 +20,7 @@ if not os.getenv("OPENAI_API_KEY"):
 # =========================
 # UI
 # =========================
-st.title("EquityBot: News Research Tool 📈")
+st.title("IngestIQ 📈")
 st.sidebar.title("News Article URLs")
 
 urls = [st.sidebar.text_input(f"URL {i+1}") for i in range(3)]

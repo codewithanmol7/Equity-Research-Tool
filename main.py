@@ -1,114 +1,72 @@
 import os
 import streamlit as st
-from dotenv import load_dotenv
-
-from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain.chains.qa_with_sources.retrieval import RetrievalQAWithSourcesChain
+import pickle
+import time
+from langchain_openai import OpenAI
+from langchain_classic.chains import RetrievalQAWithSourcesChain
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import WebBaseLoader
+from langchain_community.document_loaders import UnstructuredURLLoader
+from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 
-# =========================
-# ENV
-# =========================
-load_dotenv()
+from dotenv import load_dotenv
+load_dotenv()  # take environment variables from .env (especially openai api key)
 
-if not os.getenv("OPENAI_API_KEY"):
-    st.error("OPENAI_API_KEY not found. Add it in Streamlit secrets.")
-    st.stop()
-
-# =========================
-# UI
-# =========================
 st.title("IngestIQ 📈")
 st.sidebar.title("News Article URLs")
 
-urls = [st.sidebar.text_input(f"URL {i+1}") for i in range(3)]
+urls = []
+for i in range(3):
+    url = st.sidebar.text_input(f"URL {i+1}")
+    urls.append(url)
+
 process_url_clicked = st.sidebar.button("Process URLs")
+file_path = "faiss_store_openai.pkl"
 
-# =========================
-# LLM
-# =========================
-llm = ChatOpenAI(
-    temperature=0.2,
-    max_tokens=500
-)
+main_placeholder = st.empty()
+llm = OpenAI(temperature=0.9, max_tokens=500)
 
-# =========================
-# PROCESS URLS
-# =========================
 if process_url_clicked:
-
-    valid_urls = [u for u in urls if u.strip()]
-    if not valid_urls:
-        st.error("Enter at least one URL")
-        st.stop()
-
-    with st.spinner("Loading data..."):
-        loader = WebBaseLoader(valid_urls)
-        data = loader.load()
-
-    if not data:
-        st.error("No content loaded from URLs")
-        st.stop()
-
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=600,
-        chunk_overlap=200
+    # load data
+    loader = UnstructuredURLLoader(urls=urls)
+    main_placeholder.text("Data Loading...Started...")
+    data = loader.load()
+    # split data
+    text_splitter = RecursiveCharacterTextSplitter(
+        separators=['\n\n', '\n', '.', ','],
+        chunk_size=1000
     )
-    docs = splitter.split_documents(data)
-
-    # FIX: ensure metadata
-    for doc in docs:
-        doc.metadata["source"] = doc.metadata.get("source", "web")
-
-    with st.spinner("Creating embeddings..."):
-        embeddings = OpenAIEmbeddings()
-        vectorstore = FAISS.from_documents(docs, embeddings)
-        vectorstore.save_local("faiss_index")
-
-    st.success("Processing complete!")
-
-# =========================
-# QUESTION
-# =========================
-query = st.text_input("Question:")
-
-if query:
-
-    if not os.path.exists("faiss_index"):
-        st.error("Process URLs first")
-        st.stop()
-
+    main_placeholder.text("Text Splitter...Started...")
+    docs = text_splitter.split_documents(data)
+    # create embeddings and save it to FAISS index
     embeddings = OpenAIEmbeddings()
+    vectorstore_openai = FAISS.from_documents(docs, embeddings)
+    main_placeholder.text("Embedding Vector Started Building...")
+    time.sleep(2)
 
-    vectorstore = FAISS.load_local(
-        "faiss_index",
-        embeddings,
-        allow_dangerous_deserialization=True
-    )
+    # Save the FAISS index to a pickle file
+    with open(file_path, "wb") as f:
+        pickle.dump(vectorstore_openai, f)
 
-    retriever = vectorstore.as_retriever(
-        search_kwargs={"k": 4}
-    )
+query = main_placeholder.text_input("Question: ")
+if query:
+    if os.path.exists(file_path):
+        with open(file_path, "rb") as f:
+            vectorstore = pickle.load(f)
+            chain = RetrievalQAWithSourcesChain.from_llm(llm=llm, retriever=vectorstore.as_retriever())
+            result = chain({"question": query}, return_only_outputs=True)
+            # result will be a dictionary of this format --> {"answer": "", "sources": [] }
+            st.header("Answer")
+            st.write(result["answer"])
 
-    chain = RetrievalQAWithSourcesChain.from_chain_type(
-        llm=llm,
-        retriever=retriever,
-        return_source_documents=True
-    )
+            # Display sources, if available
+            sources = result.get("sources", "")
+            if sources:
+                st.subheader("Sources:")
+                sources_list = sources.split("\n")  # Split the sources by newline
+                for source in sources_list:
+                    st.write(source)
 
-    with st.spinner("Generating answer..."):
-        try:
-            result = chain.invoke({"question": query})
-        except Exception as e:
-            st.error(f"Model error: {str(e)}")
-            st.stop()
 
-    st.header("Answer")
-    st.write(result.get("answer", "No answer found"))
 
-    if result.get("sources"):
-        st.subheader("Sources")
-        for s in result["sources"].split("\n"):
-            st.write(s)
+
